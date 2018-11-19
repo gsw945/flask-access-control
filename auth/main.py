@@ -51,7 +51,9 @@ def sync_permissions(app, db):
     endpoint_list = list(app.route_map.keys())
     # 情形-1
     # 代码中不存在，但数据库中有的挂载点
-    ni_permissions = Permission.query.filter(Permission.endpoint.notin_(endpoint_list)).all()
+    ni_permissions = Permission.query.filter(
+        Permission.endpoint.notin_(endpoint_list)
+    ).all()
     # 权限ID
     ni_pids = list(map(lambda p: p.pid, ni_permissions))
     # 删除角色-权限关联
@@ -59,13 +61,19 @@ def sync_permissions(app, db):
     stmt = tb_rp.delete().where(
         tb_rp.columns.permission_id.in_(ni_pids)
     )
-    # 执行删除操作
+    # 执行删除 角色-权限关联 操作
     del_rowcount = db.session.execute(stmt).rowcount
     # print(del_rowcount)
+    # 执行删除 权限 操作
+    for ni_p in ni_permissions:
+        db.session.delete(ni_p)
+    db.session.commit()
     
     # 情形-2
     # 代码中存在，数据库中也有的挂载点
-    in_permissions = Permission.query.filter(Permission.endpoint.in_(endpoint_list)).all()
+    in_permissions = Permission.query.filter(
+        Permission.endpoint.in_(endpoint_list)
+    ).all()
     for p_obj in in_permissions:
         # 比对权限名，如果不同，则更新
         new_name = app.route_map[p_obj.endpoint]
@@ -76,6 +84,9 @@ def sync_permissions(app, db):
     db.session.commit()
     # 情形-3
     # 新加入的权限，保存到数据库
-    new_permissions = list(map(lambda endpoint: Permission(endpoint, app.route_map[endpoint]), endpoint_list))
+    new_permissions = list(map(
+        lambda endpoint: Permission(endpoint, app.route_map[endpoint]),
+        endpoint_list
+    ))
     db.session.add_all(new_permissions)
     db.session.commit()

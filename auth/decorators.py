@@ -6,7 +6,7 @@ from datetime import datetime
 from collections import OrderedDict
 import inspect
 
-from flask import g, request, current_app
+from flask import g, request, current_app, session
 from flask.helpers import _endpoint_from_view_func
 
 
@@ -52,7 +52,7 @@ def record_permission(permission, check_func=None, *check_args, **check_kwargs):
             # print(request.endpoint)
             # 检查权限
             if is_callable(check_func):
-                check_resp = check_func(*check_args, **kwargs)
+                check_resp = check_func(*check_args, **check_kwargs)
                 if bool(check_resp):
                     return check_resp
             ret = view_func(*args, **kwargs)
@@ -64,7 +64,6 @@ def record_permission(permission, check_func=None, *check_args, **check_kwargs):
         module = inspect.getmodule(wrapped)
         # 模块文件
         module_filename = os.path.abspath(module.__file__)
-        module_filename = os.path.abspath(module_filename)
         # 函数所在文件
         filename = inspect.getsourcefile(wrapped)
         filename = os.path.abspath(filename)
