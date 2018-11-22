@@ -3,11 +3,11 @@ from flask import jsonify, g, request
 
 from . import auth_app
 from .models import Permission
-from .decorators import record_permission
+from .helper import record_auth_route
 
 
 @auth_app.route('/login')
-@record_permission('权限-登录')
+@record_auth_route('权限-登录')
 def view_login():
     return jsonify({})
 
@@ -29,6 +29,6 @@ def ac_check():
     })
 
 @auth_app.route('/demo')
-@record_permission('权限-Demo', check_func=ac_check)
+@record_auth_route('权限-Demo', check_func=ac_check)
 def view_demo():
     return jsonify({})

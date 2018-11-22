@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 import os
+import inspect
 import builtins
 from functools import wraps
-from datetime import datetime
 from collections import OrderedDict
-import inspect
 
-from flask import g, request, current_app, session
+from flask import g, request
 from flask.helpers import _endpoint_from_view_func
 
 
@@ -18,8 +17,8 @@ class Singleton(object):
             cls._instance = origin.__new__(cls, *args, **kwargs)
         return cls._instance
 
-class GlobalVar(Singleton, OrderedDict):
-    """全局变量-类（兼容有序字典）"""
+class RouteCollection(Singleton, OrderedDict):
+    """路由容器-类（兼容有序字典）"""
     pass
 
 def is_callable(obj):
@@ -28,7 +27,7 @@ def is_callable(obj):
         return callable(obj)
     return hasattr(obj, '__call__')
 
-def record_permission(permission, check_func=None, *check_args, **check_kwargs):
+def record_auth_route(permission, check_func=None, *check_args, **check_kwargs):
     '''
     路由绑定权限（可传入check_func自定义验证）
 
@@ -71,13 +70,13 @@ def record_permission(permission, check_func=None, *check_args, **check_kwargs):
         _source, lineno = inspect.getsourcelines(wrapped)
         # 以 (模块文件路径, 函数所在文件路径, 函数名, 函数在文件中定义行号) 作为键
         key = (module_filename, filename, func_name, lineno)
-        # 全局变量
-        GV = GlobalVar()
+        # 路由容器
+        RC = RouteCollection()
         # endpoint = _endpoint_from_view_func(wrapped)
         # 在蓝图中，未能获取到正确的endpoint
-        # GV[key] = (endpoint, permission)
+        # RC[key] = (endpoint, permission)
         # 以 权限名 作为值
-        GV[key] = permission
+        RC[key] = permission
 
         return wrapped
 

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>列表页面</title>
+    <style type="text/css">
+        * {
+            padding: 0;
+            margin: 0;
+        }
+        body {
+            width: 800px;
+            margin: 0 auto;
+            padding: 3em;
+        }
+        label {
+            font-weight: 600;
+            text-decoration: underline;
+        }
+        .side-half {
+            width: 47%;
+            display: inline-block;
+            vertical-align: top;
+        }
+        .side-half ul > li {
+            margin-left: 2em;
+        }
+        li br + strong {
+            margin-left: 2em;
+        }
+        .no-data-tip {
+            color: gray;
+            margin-left: 2em;
+        }
+    </style>
+</head>
+<body>
+    {% include "widget-pages.html"  ignore missing with context %}
+    <hr />
+    <label>用户列表</label>
+    {% if US %}
+        <ul>
+            {% for u in US %}
+                <li>
+                    <strong>{{ u.id }}</strong><br />
+                    <strong>{{ u.email }}</strong>
+                    <strong>{{ u.nickname }}</strong>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <div>
+            <span class="no-data-tip">没有数据</span>
+        </div>
+    {% endif %}
+    <hr />
+    <label>角色列表</label>
+    {% if RS %}
+        <ul>
+            {% for r in RS %}
+                <li>
+                    <strong>{{ r.id }}</strong><br />
+                    <strong>{{ r.name }}</strong>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <div>
+            <span class="no-data-tip">没有数据</span>
+        </div>
+    {% endif %}
+    <hr />
+    <label>权限列表</label>
+    <div>
+        <div class="side-half">
+            <label>路由:</label>
+            {% if RPS %}
+                <ul>
+                    {% for rp in RPS %}
+                        <li>
+                            <strong>{{ rp.name }}</strong><br />
+                            <strong>{{ rp.record }}</strong>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div>
+                    <span class="no-data-tip">没有数据</span>
+                </div>
+            {% endif %}
+        </div>
+        <div class="side-half">
+            <label>菜单:</label>
+            {% if MPS %}
+                <ul>
+                    {% for mp in MPS %}
+                        <li>
+                            <strong>{{ mp.name }}</strong><br />
+                            <strong>{{ mp.record }}</strong>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div>
+                    <span class="no-data-tip">没有数据</span>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

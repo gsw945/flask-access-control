@@ -77,23 +77,42 @@ class Permission(Base):
     """权限"""
     __tablename__ = 'permissions'
     __table_args__ = (
-        UniqueConstraint('name', 'endpoint'),
+        # UniqueConstraint('category', 'name'),
+        UniqueConstraint('category', 'record'),
     )
     
     pid = Column('pid', Integer, primary_key=True, autoincrement=True, comment='权限ID')
-    name = Column('name', String(50), unique=True, nullable=False, comment='权限名')
-    endpoint = Column('endpoint', String(250), unique=True, nullable=False, comment='权限操作挂载的路由')
+    name = Column('name', String(128), nullable=False, comment='权限名')
+    record = Column('record', String(128), nullable=False, comment='权限记录标识')
+    category = Column('category', String(50), nullable=False, comment='权限分类(取值: route,menu)')
 
-    def __init__(self, endpoint, name):
-        self.endpoint = endpoint
+    @property
+    def allowed_categories(self):
+        return {
+            'route': '路由',
+            'menu': '菜单'
+        }
+
+    @property
+    def category_text(self):
+        return self.allowed_categories[self.category]
+
+    def __init__(self, name, record, category='route'):
         self.name = name
+        self.record = record
+        if category not in self.allowed_categories:
+            raise ValueError('category取值只能是[{0}]之一'.format('、'.join(
+                map(lambda item: repr(item), self.allowed_categories.keys())
+            )))
+        self.category = category
 
     def to_dict(self):
         return {
             'pid': self.pid,
             'name': self.name,
-            'endpoint': self.endpoint
+            'record': self.record,
+            'category': self.category
         }
 
     def __repr__(self):
-        return '<{0} {1!r}>'.format(__class__.__name__, self.name)
+        return '<{0} [{1}]-{2!r}>'.format(__class__.__name__, self.category_text, self.name)

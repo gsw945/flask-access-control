@@ -2,12 +2,16 @@
 import os
 import inspect
 
+from flask import g, request, current_app, session
+
 from .models import Base, User, Role, Permission, role_permission_map
-from .apis import auth_app, record_permission
-from .decorators import GlobalVar
+from .apis import auth_app
+from .helper import record_auth_route, RouteCollection
 
 
-def bind_app(app, url_prefix=None):
+AUTH_NAME = auth_app.name
+
+def register_auth_routes(app, url_prefix=None):
     '''
     将auth添加到Flask应用
     注意：一定需要在所有路由都注册了之后再调用
@@ -15,8 +19,8 @@ def bind_app(app, url_prefix=None):
     # 注册蓝图( url_prefix 默认为 '/auth')
     app.register_blueprint(auth_app, url_prefix=url_prefix)
 
-    app.route_map = {}
-    GV = GlobalVar()
+    app.auth_route_map = {}
+    RC = RouteCollection()
     for endpoint in app.view_functions:
         view_func = app.view_functions[endpoint]
         func_name = view_func.__name__
@@ -26,15 +30,27 @@ def bind_app(app, url_prefix=None):
         filename = os.path.abspath(filename)
         _source, lineno = inspect.getsourcelines(view_func)
         key = (module_filename, filename, func_name, lineno)
-        if key in GV:
-            permission = GV[key]
-            app.route_map[endpoint] = permission
-    GV.clear()
-    del GV
+        if key in RC:
+            permission = RC[key]
+            app.auth_route_map[endpoint] = permission
+    RC.clear()
+    del RC
+
+def register_auth_menus(app, menus):
+    '''菜单注册'''
+    allowed_types = ['link', 'url4']
+    app.auth_menu_map = {}
+    for item in menus:
+        if item['type'] == 'group':
+            for sub_item in item['value']:
+                app.auth_menu_map[sub_item['value']] = sub_item['text']
+        else:
+            if item['type'] in allowed_types:
+                app.auth_menu_map[item['value']] = item['text']
 
 def sync_permissions(app, db):
     '''
-    权限同步，以程序中收集的endpoint为准，更新数据库中的记录
+    权限同步，以程序中收集的(category, record)为准，更新数据库中的记录
     '''
     # 3 种情形
     #     1. code中没有, db中有, delete
@@ -42,20 +58,32 @@ def sync_permissions(app, db):
     #     3. code中有, db中没有, insert
     '''
     # debug
-    print(app.route_map)
-    for endpoint in app.route_map:
-        permission = app.route_map[endpoint]
-        print(endpoint, '->', permission)
+    print(app.auth_route_map)
+    for record in app.auth_route_map:
+        permission_text = app.auth_route_map[record]
+        print(('route', record), '->', permission_text)
+    print(app.auth_menu_map)
+    for record in app.auth_menu_map:
+        permission_text = app.auth_menu_map[record]
+        print(('route', record), '->', permission_text)
     '''
-    # 挂载点列表
-    endpoint_list = list(app.route_map.keys())
+    # 记录列表(route 和 menu)
+    route_list = list(app.auth_route_map.keys())
+    menu_list = list(app.auth_menu_map.keys())
     # 情形-1
-    # 代码中不存在，但数据库中有的挂载点
-    ni_permissions = Permission.query.filter(
-        Permission.endpoint.notin_(endpoint_list)
+    # 代码中不存在，但数据库中有的记录
+    ni_routes = Permission.query.filter(
+        Permission.record.notin_(route_list) &
+        (Permission.category == 'route')
+
+    ).all()
+    ni_menus = Permission.query.filter(
+        Permission.record.notin_(menu_list) &
+        (Permission.category == 'menu')
+
     ).all()
     # 权限ID
-    ni_pids = list(map(lambda p: p.pid, ni_permissions))
+    ni_pids = list(map(lambda p: p.pid, ni_routes + ni_menus))
     # 删除角色-权限关联
     tb_rp = role_permission_map
     stmt = tb_rp.delete().where(
@@ -65,28 +93,49 @@ def sync_permissions(app, db):
     del_rowcount = db.session.execute(stmt).rowcount
     # print(del_rowcount)
     # 执行删除 权限 操作
-    for ni_p in ni_permissions:
+    for ni_p in ni_routes:
+        db.session.delete(ni_p)
+    for ni_p in ni_menus:
         db.session.delete(ni_p)
     db.session.commit()
     
     # 情形-2
-    # 代码中存在，数据库中也有的挂载点
-    in_permissions = Permission.query.filter(
-        Permission.endpoint.in_(endpoint_list)
+    # 代码中存在，数据库中也有的记录
+    in_routes = Permission.query.filter(
+        Permission.record.in_(route_list) &
+        (Permission.category == 'route')
+
     ).all()
-    for p_obj in in_permissions:
+    in_menus = Permission.query.filter(
+        Permission.record.in_(menu_list) &
+        (Permission.category == 'menu')
+
+    ).all()
+    for p_obj in in_routes:
         # 比对权限名，如果不同，则更新
-        new_name = app.route_map[p_obj.endpoint]
+        new_name = app.auth_route_map[p_obj.record]
         if p_obj.name != new_name:
             p_obj.name = new_name
-        # 移除已经处理了的挂载点
-        endpoint_list.remove(p_obj.endpoint)
+        # 移除已经处理了的记录
+        route_list.remove(p_obj.record)
+    for p_obj in in_menus:
+        # 比对权限名，如果不同，则更新
+        new_name = app.auth_menu_map[p_obj.record]
+        if p_obj.name != new_name:
+            p_obj.name = new_name
+        # 移除已经处理了的记录
+        menu_list.remove(p_obj.record)
     db.session.commit()
     # 情形-3
     # 新加入的权限，保存到数据库
-    new_permissions = list(map(
-        lambda endpoint: Permission(endpoint, app.route_map[endpoint]),
-        endpoint_list
+    new_routes = list(map(
+        lambda ri: Permission(app.auth_route_map[ri], ri, 'route'),
+        route_list
     ))
-    db.session.add_all(new_permissions)
+    db.session.add_all(new_routes)
+    new_menus = list(map(
+        lambda mi: Permission(app.auth_menu_map[mi], mi, 'menu'),
+        menu_list
+    ))
+    db.session.add_all(new_menus)
     db.session.commit()

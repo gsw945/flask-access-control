@@ -5,8 +5,10 @@ from flask import Blueprint
 
 # 实际使用中，db从外部导入
 # db = SQLAlchemy()
+NAME = 'auth'
 auth_app = Blueprint(
-    'auth',
+    NAME,
     __name__,
     url_prefix='/auth'
 )
+setattr(auth_app, 'name', NAME)
